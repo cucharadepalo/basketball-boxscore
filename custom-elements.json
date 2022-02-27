@@ -2,8 +2,8 @@
   "version": "experimental",
   "tags": [
     {
-      "name": "my-element",
-      "path": "./my-element.js",
+      "name": "basketball-boxscore",
+      "path": "./basketball-boxscore.js",
       "description": "An example element.",
       "attributes": [
         {

@@ -39,4 +39,4 @@ class F extends V{static get styles(){return o`
         Click Count: ${this.count}
       </button>
       <slot></slot>
-    `}_onClick(){this.count++,this.dispatchEvent(new CustomEvent("count-changed"))}sayHello(t){return`Hello, ${t}`}}window.customElements.define("my-element",F);export{F as MyElement};
+    `}_onClick(){this.count++,this.dispatchEvent(new CustomEvent("count-changed"))}sayHello(t){return`Hello, ${t}`}}window.customElements.define("my-element",F);export{F as BasketballBoxscore};

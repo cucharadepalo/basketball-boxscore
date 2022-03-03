@@ -21,6 +21,19 @@ export class BasketballBoxscore extends LitElement {
 				border: solid 1px gray;
 				padding: 16px;
 			}
+			table {
+				width: 100%;
+			}
+			td:first-child {
+				width: 200px;
+				display: block;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+			td:not(:first-child) {
+				text-align: right;
+			}
 		`;
 	}
 
@@ -85,15 +98,16 @@ export class BasketballBoxscore extends LitElement {
 				}
 				</td>
 				<td>${player.minutes} </td>
+				<td>${player.points}</td>
 				<td>${player.fgm} </td>
 				<td>${player.fga} </td>
-				<td>${Math.round(player.fgm / player.fga * 100)} </td>
+				<td>${this.utils.pct(player.fgm, player.fga)} </td>
 				<td>${player.thpm} </td>
 				<td>${player.thpa} </td>
-				<td>${Math.round(player.thpm / player.thpa * 100)}</td>
+				<td>${this.utils.pct(player.thpm, player.thpa)}</td>
 				<td>${player.ftm} </td>
 				<td>${player.fta} </td>
-				<td>${Math.round(player.ftm / player.fta * 100)}</td>
+				<td>${this.utils.pct(player.ftm, player.fta)}</td>
 				<td>${player.rebounds}</td>
 				<td>${player.defRebounds}</td>
 				<td>${player.offRebounds}</td>
@@ -102,7 +116,6 @@ export class BasketballBoxscore extends LitElement {
 				<td>${player.blocks} </td>
 				<td>${player.turnovers} </td>
 				<td>${player.fouls}</td>
-				<td>${player.points}</td>
 				<td>${player.plusMinus}</td>
 			</tr>
 		`
@@ -113,6 +126,7 @@ export class BasketballBoxscore extends LitElement {
 			<tr>
 				<th>Player</th>
 				<th>Min</th>
+				<th>Pts</th>
 				<th>Fgm</th>
 				<th>Fga</th> 
 				<th>FG%</th>
@@ -130,7 +144,6 @@ export class BasketballBoxscore extends LitElement {
 				<th>Blk</th>
 				<th>To</th>
 				<th>PF</th>
-				<th>Pts</th>
 				<th>+/- </th>
 			</tr>
 		</thead>
@@ -145,11 +158,32 @@ export class BasketballBoxscore extends LitElement {
 		}
 		return html`
 			<p>${this.home.name} <span class="score">${this.home.score}</span> | <span class="score">${this.visitor.score}</span> ${this.visitor.name} </p>
-			<table>
+			<table cellpadding="4">
 				${this.tableHeaderTpl()}
 				<tbody>
-					${this.home.players.map( player => this.playerRowTpl(player))}
+					${this.home.players.map( player => {
+							if (player.minutes !== '00:00') {
+								return this.playerRowTpl(player)
+							}
+					})}
 				</tbody>
+				<tfoot>
+					${this.playerRowTpl(this.home.totals)}
+				</tfoot>
+			</table>
+			<br>
+			<table cellpadding="4">
+				${this.tableHeaderTpl()}
+				<tbody>
+					${this.visitor.players.map( player => {
+							if (player.minutes !== '00:00') {
+								return this.playerRowTpl(player)
+							}
+					})}
+				</tbody>
+				<tfoot>
+					${this.playerRowTpl(this.visitor.totals)}
+				</tfoot>
 			</table>
 		`;
 	}
@@ -187,6 +221,10 @@ export class BasketballBoxscore extends LitElement {
 		}
 	}
 
+	utils = {
+		pct: (a, b) =>  a !== 0 ? Math.round((a / b * 100) * 10) / 10 : 0
+	}
+
 	_transformData() {
 		let feedType;
 		
@@ -216,6 +254,7 @@ export class BasketballBoxscore extends LitElement {
 				this.home.players = _homePlayers.map( p => this._mapNBAStats(p));
 				this.visitor.players = _visitorPlayers.map( p => this._mapNBAStats(p));
 				this.home.totals = this._mapNBAStats(_game.home.stats);
+				this.visitor.totals = this._mapNBAStats(_game.visitor.stats);
 
 				console.log({home: this.home.players, totals: this.home.totals, visitor: this.visitor.players})
 			}

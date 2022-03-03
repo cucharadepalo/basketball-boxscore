@@ -14,62 +14,248 @@ import {LitElement, html, css} from 'lit';
  * @csspart button - The button
  */
 export class BasketballBoxscore extends LitElement {
-  static get styles() {
-    return css`
-      :host {
-        display: block;
-        border: solid 1px gray;
-        padding: 16px;
-        max-width: 800px;
-      }
-    `;
-  }
+	static get styles() {
+		return css`
+			:host {
+				display: block;
+				border: solid 1px gray;
+				padding: 16px;
+			}
+		`;
+	}
 
-  static get properties() {
-    return {
-      /**
-       * The name to say "Hello" to.
-       * @type {string}
-       */
-      name: {type: String},
+	static get properties() {
+		return {
+			/**
+			 * The URL of the JSON source data
+			 * @type {string}
+			 */
+			src: {type: String},
 
-      /**
-       * The number of times the button has been clicked.
-       * @type {number}
-       */
-      count: {type: Number},
-    };
-  }
+			/**
+			 * The raw JSON data from NBA or Euroleague API
+			 * @type {object}
+			 */
+			data: {type: Object},
 
-  constructor() {
-    super();
-    this.name = 'World';
-    this.count = 0;
-  }
+			/**
+			 * Is the game live?
+			 * @type {boolean}
+			 */
+			isLive: {type: Boolean},
 
-  render() {
-    return html`
-      <h1>${this.sayHello(this.name)}!</h1>
-      <button @click=${this._onClick} part="button">
-        Click Count: ${this.count}
-      </button>
-      <slot></slot>
-    `;
-  }
+			/**
+			 * Is the game finished?
+			 * The game could be in 'PRE' status
+			 * @type {boolean}
+			 */
+			isFinished: {type: Boolean},
 
-  _onClick() {
-    this.count++;
-    this.dispatchEvent(new CustomEvent('count-changed'));
-  }
+			/**
+			 * Home team props
+			 * @type {object}
+			 */
+			home: {type: Object},
 
-  /**
-   * Formats a greeting
-   * @param name {string} The name to say "Hello" to
-   * @returns {string} A greeting directed at `name`
-   */
-  sayHello(name) {
-    return `Hello, ${name}`;
-  }
+			/**
+			 * Visiting team props
+			 * @type {object}
+			 */
+			visitor: {type: Object}
+
+		};
+	}
+
+	constructor() {
+		super();
+		this.src = '';
+		this.data = null;
+		this.isLive = false;
+		this.home = {};
+		this.visitor = {};
+	}
+
+	playerRowTpl(player) {
+		return html `
+			<tr>
+				<td>
+				${this.isLive && player.isPlaying || this.isFinished && player.isStarter
+					? html `<strong>${player.name}</strong>`
+					: html `${player.name}`
+				}
+				</td>
+				<td>${player.minutes} </td>
+				<td>${player.fgm} </td>
+				<td>${player.fga} </td>
+				<td>${Math.round(player.fgm / player.fga * 100)} </td>
+				<td>${player.thpm} </td>
+				<td>${player.thpa} </td>
+				<td>${Math.round(player.thpm / player.thpa * 100)}</td>
+				<td>${player.ftm} </td>
+				<td>${player.fta} </td>
+				<td>${Math.round(player.ftm / player.fta * 100)}</td>
+				<td>${player.rebounds}</td>
+				<td>${player.defRebounds}</td>
+				<td>${player.offRebounds}</td>
+				<td>${player.assists}</td>
+				<td>${player.steals} </td>
+				<td>${player.blocks} </td>
+				<td>${player.turnovers} </td>
+				<td>${player.fouls}</td>
+				<td>${player.points}</td>
+				<td>${player.plusMinus}</td>
+			</tr>
+		`
+	}
+
+	tableHeaderTpl() {
+		return html `<thead>
+			<tr>
+				<th>Player</th>
+				<th>Min</th>
+				<th>Fgm</th>
+				<th>Fga</th> 
+				<th>FG%</th>
+				<th>3pm</th>
+				<th>3pa</th>
+				<th>3p%</th>
+				<th>Ftm</th>
+				<th>Fta</th>
+				<th>Ft%</th>
+				<th>Reb</th>
+				<th>Dreb</th>
+				<th>Oreb</th>
+				<th>Ast</th>
+				<th>Stl</th>
+				<th>Blk</th>
+				<th>To</th>
+				<th>PF</th>
+				<th>Pts</th>
+				<th>+/- </th>
+			</tr>
+		</thead>
+		`
+	}
+
+	render() {
+		if (!this.data) {
+			return html`
+				<p>Cargando...</p>
+			`;
+		}
+		return html`
+			<p>${this.home.name} <span class="score">${this.home.score}</span> | <span class="score">${this.visitor.score}</span> ${this.visitor.name} </p>
+			<table>
+				${this.tableHeaderTpl()}
+				<tbody>
+					${this.home.players.map( player => this.playerRowTpl(player))}
+				</tbody>
+			</table>
+		`;
+	}
+
+	async connectedCallback() {
+		super.connectedCallback();
+		await this._fetchData()
+	}
+
+	async _fetchData() {
+		const fetchHeaders = new Headers({
+			Accept: 'application/json'
+		})
+
+		const fetchOptions = {
+			cache: 'default',
+			headers: fetchHeaders,
+			method: 'GET',
+			mode: 'cors'
+		}
+		
+		if (this.src.length > 0) {
+			const res = await fetch(this.src, fetchOptions);
+			const _data = await res.json();
+			
+			if (res.ok) {
+				this.data = _data;
+				this._transformData();
+			} else {
+				this.data = new Error(_data);
+			}
+
+		} else {
+			return
+		}
+	}
+
+	_transformData() {
+		let feedType;
+		
+		switch (true) {
+			case this.src.includes('nba.net'):
+				feedType = 'nba';
+				break;
+			case this.src.includes('euroleague.net'):
+				feedType = 'euroleague';
+				break;
+		}
+
+		if (feedType === 'nba') {
+			const _game = this.data.sports_content.game;
+			// Game status: 1 Pre | 2 Live | 3 False
+			this.isLive = _game.period_time.game_status == 2 ? true : false;
+			this.isFinished = _game.period_time.game_status == 3 ? true : false;
+
+			if (this.isLive || this.isFinished) {
+
+				this.visitor.name = `${_game.visitor.city}  ${_game.visitor.nickname}`;
+				this.home.name = `${_game.home.city} ${_game.home.nickname}`;
+				this.home.score = parseInt(_game.home.score);
+				this.visitor.score = parseInt(_game.visitor.score);
+				let _homePlayers = _game.home.players.player;
+				let _visitorPlayers = _game.visitor.players.player;
+				this.home.players = _homePlayers.map( p => this._mapNBAStats(p));
+				this.visitor.players = _visitorPlayers.map( p => this._mapNBAStats(p));
+				this.home.totals = this._mapNBAStats(_game.home.stats);
+
+				console.log({home: this.home.players, totals: this.home.totals, visitor: this.visitor.players})
+			}
+
+		} else if (feedType === 'euroleague') {
+			console.log('Es un partido de Euroleague');
+
+		}
+
+	}
+
+	_mapNBAStats(obj) {
+		return {
+			name: `${obj.first_name ? obj.first_name + ' ' + obj.last_name: 'totals'}`,
+			jersey_number: obj.jersey_number ? obj.jersey_number : undefined,
+			isStarter: obj.starting_position && obj.starting_position.length > 0 ? true : false,
+			isPlaying: obj.on_court == 1 ? true : false,
+			minutes: obj.minutes && `${obj.minutes.length == 1? obj.minutes.padStart(2,0): obj.minutes}:${obj.seconds.length == 1? obj.seconds.padStart(2,0): obj.seconds}`,
+			seconds: obj.seconds,
+			points: parseInt(obj.points),
+			fgm: parseInt(obj.field_goals_made),
+			fga: parseInt(obj.field_goals_attempted),
+			thpm: parseInt(obj.three_pointers_made),
+			thpa: parseInt(obj.three_pointers_attempted),
+			twpm: parseInt(obj.field_goals_made) - parseInt(obj.three_pointers_made),
+			twpa: parseInt(obj.field_goals_attempted) - parseInt(obj.three_pointers_attempted),
+			ftm: parseInt(obj.free_throws_made),
+			fta: parseInt(obj.free_throws_attempted),
+			rebounds: parseInt(obj.rebounds_offensive) + parseInt(obj.rebounds_defensive) + (obj.team_rebounds ? parseInt(obj.team_rebounds) : 0),
+			offRebounds: parseInt(obj.rebounds_offensive),
+			defRebounds: parseInt(obj.rebounds_defensive),
+			assists: parseInt(obj.assists),
+			steals: parseInt(obj.steals),
+			turnovers: parseInt(obj.turnovers),
+			blocks: parseInt(obj.blocks),
+			plusMinus: obj.plus_minus && parseInt(obj.plus_minus),
+			fouls: parseInt(obj.fouls)
+		}
+	}
+
 }
 
 window.customElements.define('basketball-boxscore', BasketballBoxscore);

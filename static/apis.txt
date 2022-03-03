@@ -1,0 +1,15 @@
+NBA
+https://data.nba.net/json/cms/noseason/game/20220216/0022100874/boxscore.json
+https://data.nba.net/json/cms/noseason/game/{{ gameDate }}/{{ gameId }}/boxscore.json
+https://data.nba.net/prod/v1/20220216/0022100874_boxscore.json
+https://data.nba.net/10s/prod/v1/today.json
+https://data.nba.net/prod/v1/prod/v1/{{gameDate}}/{{gameId}}_boxscore.json
+
+Euroleague
+https://live.euroleague.net/api/Boxscore?gamecode=241&seasoncode=E2021
+
+Local
+http://localhost:8000/static/nba.net/boxscore.json
+
+
+

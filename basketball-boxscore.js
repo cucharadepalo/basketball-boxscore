@@ -222,7 +222,15 @@ export class BasketballBoxscore extends LitElement {
 	}
 
 	utils = {
-		pct: (a, b) =>  a !== 0 ? Math.round((a / b * 100) * 10) / 10 : 0
+		pct: (a, b) =>  a !== 0 ? Math.round((a / b * 100) * 10) / 10 : 0,
+		elPlayerName: (str) => {
+			let name = str.split(', ')[1].toLowerCase();
+			name = name.charAt(0).toUpperCase() + name.slice(1);
+			let last = str.split(', ')[0].toLowerCase();
+			last = last.charAt(0).toUpperCase() + last.slice(1);
+			return `${name} ${last}`
+		},
+		elTeamName: (str) => str.toLowerCase().split(' ').map( w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 	}
 
 	_transformData() {
@@ -255,25 +263,37 @@ export class BasketballBoxscore extends LitElement {
 				this.visitor.players = _visitorPlayers.map( p => this._mapNBAStats(p));
 				this.home.totals = this._mapNBAStats(_game.home.stats);
 				this.visitor.totals = this._mapNBAStats(_game.visitor.stats);
-
-				console.log({home: this.home.players, totals: this.home.totals, visitor: this.visitor.players})
 			}
 
 		} else if (feedType === 'euroleague') {
-			console.log('Es un partido de Euroleague');
+			this.isLive = this.data.Live;
+			this.isFinished = !this.data.Live;
+			const _game = this.data.Stats;
 
+			if (this.isLive || this.isFinished) {
+				this.home.name = this.utils.elTeamName(_game[0].Team);
+				this.visitor.name = this.utils.elTeamName(_game[1].Team);
+				this.home.score = _game[0].totr.Points;
+				this.visitor.score = _game[1].totr.Points;
+				this.home.players = _game[0].PlayersStats.map( p => this._mapEuroleagueStats(p));
+				this.visitor.players = _game[1].PlayersStats.map( p => this._mapEuroleagueStats(p));
+				this.home.totals = this._mapEuroleagueStats(_game[0].totr);
+				this.visitor.totals = this._mapEuroleagueStats(_game[1].totr)
+			}
+
+			console.log({home: this.home, visitor: this.visitor})
 		}
+
 
 	}
 
 	_mapNBAStats(obj) {
 		return {
 			name: `${obj.first_name ? obj.first_name + ' ' + obj.last_name: 'totals'}`,
-			jersey_number: obj.jersey_number ? obj.jersey_number : undefined,
+			jerseyNumber: obj.jersey_number ? obj.jersey_number : undefined,
 			isStarter: obj.starting_position && obj.starting_position.length > 0 ? true : false,
 			isPlaying: obj.on_court == 1 ? true : false,
 			minutes: obj.minutes && `${obj.minutes.length == 1? obj.minutes.padStart(2,0): obj.minutes}:${obj.seconds.length == 1? obj.seconds.padStart(2,0): obj.seconds}`,
-			seconds: obj.seconds,
 			points: parseInt(obj.points),
 			fgm: parseInt(obj.field_goals_made),
 			fga: parseInt(obj.field_goals_attempted),
@@ -290,8 +310,42 @@ export class BasketballBoxscore extends LitElement {
 			steals: parseInt(obj.steals),
 			turnovers: parseInt(obj.turnovers),
 			blocks: parseInt(obj.blocks),
+			blocksAgainst: null,
 			plusMinus: obj.plus_minus && parseInt(obj.plus_minus),
-			fouls: parseInt(obj.fouls)
+			fouls: parseInt(obj.fouls),
+			foulsReceived: null,
+			pir: null
+		}
+	}
+
+	_mapEuroleagueStats(obj) {
+		return {
+			name: obj.Player ? this.utils.elPlayerName(obj.Player) : 'totals',
+			jerseyNumber: obj.Dorsal ? obj.Dorsal : undefined,
+			isStarter: obj.IsStarter && obj.IsStarter === 1? true : false,
+			isPlaying: obj.isPlaying && obj.IsPlaying === 1? true : false,
+			minutes: obj.Minutes,
+			points: obj.Points,
+			fgm: obj.FieldGoalsMade2 + obj.FieldGoalsMade3,
+			fga: obj.FieldGoalsAttempted2 + obj.FieldGoalsAttempted3,
+			thpm: obj.FieldGoalsMade3,
+			thpa: obj.FieldGoalsAttempted3,
+			twpm: obj.FieldGoalsMade2,
+			twpa: obj.FieldGoalsAttempted2,
+			ftm: obj.FreeThrowsMade,
+			fta: obj.FreeThrowsAttempted,
+			rebounds: obj.TotalRebounds,
+			offRebounds: obj.OffensiveRebounds,
+			defRebounds: obj.DefensiveRebounds,
+			assists: obj.Assistances,
+			steals: obj.Steals,
+			turnovers: obj.Turnovers,
+			blocks: obj.BlocksFavour,
+			blocksAgainst: obj.BlocksAgainst,
+			plusMinus: null,
+			fouls: obj.FoulsCommited,
+			foulsReceived: obj.FoulsReceived,
+			pir: obj.Valuation
 		}
 	}
 

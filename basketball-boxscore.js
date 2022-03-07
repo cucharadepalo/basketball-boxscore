@@ -44,12 +44,49 @@ export class BasketballBoxscore extends LitElement {
 			 * @type {string}
 			 */
 			src: {type: String},
+			
+			/**
+			 * The league identifier to get the src of the JSON feed
+			 * Available pptions: 'nba', 'euroleague'
+			 * @type {string}
+			 */
+			league: {type: String},
+
+			/**
+			 * The date of the game to get the JSON feed
+			 * Needed for the NBA legue
+			 * format YYYYMMDD
+			 * @type {string} 
+			 */
+			date: {type: String},
+
+			/**
+			 * Unique identifier of the game
+			 * For NBA games 10 numbers
+			 * For Euroleague games 3 numbers
+			 * @type {string}
+			 */
+			gameId: {type: String},
+
+			/**
+			 * Season code for euroleague games
+			 * Usually an 'E' followed by the year the league started
+			 * @type {string}
+			 */
+			seasonCode: {type: String},
 
 			/**
 			 * The raw JSON data from NBA or Euroleague API
 			 * @type {object}
 			 */
 			data: {type: Object},
+			
+			/**
+			 * The status of the data of the component.
+			 * Used to display error messages
+			 * @type {string}
+			 */
+			dataStatus: {type: String},
 
 			/**
 			 * Is the game live?
@@ -83,7 +120,10 @@ export class BasketballBoxscore extends LitElement {
 		super();
 		this.src = '';
 		this.data = null;
+		this.dataStatus = 'no-data';
 		this.isLive = false;
+		this.isFinished = true;
+		this.league = 'none';
 		this.home = {};
 		this.visitor = {};
 	}
@@ -93,21 +133,21 @@ export class BasketballBoxscore extends LitElement {
 			<tr>
 				<td>
 				${this.isLive && player.isPlaying || this.isFinished && player.isStarter
-					? html `<strong>${player.name}</strong>`
-					: html `${player.name}`
+					? html `${player.jerseyNumber}. <strong>${player.name}</strong>`
+					: html `${player.jerseyNumber}. ${player.name}`
 				}
 				</td>
 				<td>${player.minutes} </td>
 				<td>${player.points}</td>
 				<td>${player.fgm} </td>
 				<td>${player.fga} </td>
-				<td>${this.utils.pct(player.fgm, player.fga)} </td>
+				<td>${utils.pct(player.fgm, player.fga)} </td>
 				<td>${player.thpm} </td>
 				<td>${player.thpa} </td>
-				<td>${this.utils.pct(player.thpm, player.thpa)}</td>
+				<td>${utils.pct(player.thpm, player.thpa)}</td>
 				<td>${player.ftm} </td>
 				<td>${player.fta} </td>
-				<td>${this.utils.pct(player.ftm, player.fta)}</td>
+				<td>${utils.pct(player.ftm, player.fta)}</td>
 				<td>${player.rebounds}</td>
 				<td>${player.defRebounds}</td>
 				<td>${player.offRebounds}</td>
@@ -190,8 +230,47 @@ export class BasketballBoxscore extends LitElement {
 
 	async connectedCallback() {
 		super.connectedCallback();
-		await this._fetchData()
+		// Get the data source
+		// SRC attribute has not been set
+		if (!this.src.length > 0) {
+			if (this.league.toLowerCase() === 'nba') {
+				if (this.date && this.gameId) {
+					this.src = `https://data.nba.net/json/cms/noseason/game/${this.date}/${this.gameId}/boxscore.json`;
+					await this._fetchData()
+				} else {
+					// Error message: date & Id of the game are needed
+				}
+			} else if (this.league.toLowerCase() === 'euroleague') {
+				if (this.seasonCode && this.gameId) {
+					this.src = `https://live.euroleague.net/api/Boxscore?gamecode=${this.gameId}&seasoncode=${this.seasonCode}`;
+					await this._fetchData()
+				} else {
+					// Error message: seasonCode & gameID are needed
+				}
+			} else {
+				// Get internal data
+				// Check if the component has an internal script tag whith JSON data
+				try {
+					const children = this.children;
+					for (let child of children) {
+						if (child.tagName === 'SCRIPT' && child.type === 'application/json') {
+							this.data = JSON.parse(this.children[0].innerHTML);
+							this._transformData()
+						}
+					}
+				}
+
+				catch(ex) {
+					console.error(ex)
+				}
+			}
+		} else {
+			// SRC attribute has ben set
+			await this._fetchData()
+		}
+		
 	}
+
 
 	async _fetchData() {
 		const fetchHeaders = new Headers({
@@ -221,18 +300,6 @@ export class BasketballBoxscore extends LitElement {
 		}
 	}
 
-	utils = {
-		pct: (a, b) =>  a !== 0 ? Math.round((a / b * 100) * 10) / 10 : 0,
-		elPlayerName: (str) => {
-			let name = str.split(', ')[1].toLowerCase();
-			name = name.charAt(0).toUpperCase() + name.slice(1);
-			let last = str.split(', ')[0].toLowerCase();
-			last = last.charAt(0).toUpperCase() + last.slice(1);
-			return `${name} ${last}`
-		},
-		elTeamName: (str) => str.toLowerCase().split(' ').map( w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-	}
-
 	_transformData() {
 		let feedType;
 		
@@ -243,6 +310,9 @@ export class BasketballBoxscore extends LitElement {
 			case this.src.includes('euroleague.net'):
 				feedType = 'euroleague';
 				break;
+			default:
+				feedType = 'own';
+				break;
 		}
 
 		if (feedType === 'nba') {
@@ -252,7 +322,6 @@ export class BasketballBoxscore extends LitElement {
 			this.isFinished = _game.period_time.game_status == 3 ? true : false;
 
 			if (this.isLive || this.isFinished) {
-
 				this.visitor.name = `${_game.visitor.city}  ${_game.visitor.nickname}`;
 				this.home.name = `${_game.home.city} ${_game.home.nickname}`;
 				this.home.score = parseInt(_game.home.score);
@@ -270,18 +339,17 @@ export class BasketballBoxscore extends LitElement {
 			this.isFinished = !this.data.Live;
 			const _game = this.data.Stats;
 
-			if (this.isLive || this.isFinished) {
-				this.home.name = this.utils.elTeamName(_game[0].Team);
-				this.visitor.name = this.utils.elTeamName(_game[1].Team);
-				this.home.score = _game[0].totr.Points;
-				this.visitor.score = _game[1].totr.Points;
-				this.home.players = _game[0].PlayersStats.map( p => this._mapEuroleagueStats(p));
-				this.visitor.players = _game[1].PlayersStats.map( p => this._mapEuroleagueStats(p));
-				this.home.totals = this._mapEuroleagueStats(_game[0].totr);
-				this.visitor.totals = this._mapEuroleagueStats(_game[1].totr)
-			}
+			this.home.name = utils.elTeamName(_game[0].Team);
+			this.visitor.name = utils.elTeamName(_game[1].Team);
+			this.home.score = _game[0].totr.Points;
+			this.visitor.score = _game[1].totr.Points;
+			this.home.players = _game[0].PlayersStats.map( p => this._mapEuroleagueStats(p));
+			this.visitor.players = _game[1].PlayersStats.map( p => this._mapEuroleagueStats(p));
+			this.home.totals = this._mapEuroleagueStats(_game[0].totr);
+			this.visitor.totals = this._mapEuroleagueStats(_game[1].totr)
 
-			console.log({home: this.home, visitor: this.visitor})
+		} else if (feedType === 'own') {
+			Object.assign(this, this.data)
 		}
 
 
@@ -320,7 +388,7 @@ export class BasketballBoxscore extends LitElement {
 
 	_mapEuroleagueStats(obj) {
 		return {
-			name: obj.Player ? this.utils.elPlayerName(obj.Player) : 'totals',
+			name: obj.Player ? utils.elPlayerName(obj.Player) : 'totals',
 			jerseyNumber: obj.Dorsal ? obj.Dorsal : undefined,
 			isStarter: obj.IsStarter && obj.IsStarter === 1? true : false,
 			isPlaying: obj.isPlaying && obj.IsPlaying === 1? true : false,
@@ -352,3 +420,15 @@ export class BasketballBoxscore extends LitElement {
 }
 
 window.customElements.define('basketball-boxscore', BasketballBoxscore);
+
+const utils = {
+	pct: (a, b) =>  a !== 0 ? Math.round((a / b * 100) * 10) / 10 : 0,
+	elPlayerName: (str) => {
+		let name = str.split(', ')[1].toLowerCase();
+		name = name.charAt(0).toUpperCase() + name.slice(1);
+		let last = str.split(', ')[0].toLowerCase();
+		last = last.charAt(0).toUpperCase() + last.slice(1);
+		return `${name} ${last}`
+	},
+	elTeamName: (str) => str.toLowerCase().split(' ').map( w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+}

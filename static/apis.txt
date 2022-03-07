@@ -10,6 +10,3 @@ https://live.euroleague.net/api/Boxscore?gamecode=241&seasoncode=E2021
 
 Local
 http://localhost:8000/static/nba.net/boxscore.json
-
-
-
